@@ -176,7 +176,7 @@ public class APISubscription {
 
                 try {
 
-                    System.out.println("\nSubscription for API " + config.getApiName()+" added successfully in "+config.getApplicationName()+"..!\n");
+                    System.out.println("\nSubscription for API " + config.getApiName() + " added successfully in " + config.getApplicationName() + "..!\n");
                     HttpEntity entity = response.getEntity();
                     responseString = EntityUtils.toString(entity);
                     JSONObject content = (JSONObject) parser.parse(responseString);
@@ -486,7 +486,6 @@ public class APISubscription {
             if (response.getStatusLine().getStatusCode() == Response.Status.OK.getStatusCode()) {
 
 
-
             } else if (response.getStatusLine().getStatusCode() == Response.Status.CONFLICT.getStatusCode()) {
                 log.error(" Cannot create the Application " + config.getApplicationName() + " already exists");
             } else if (response.getStatusLine().getStatusCode() == Response.Status.CREATED.getStatusCode()) {
@@ -601,7 +600,7 @@ public class APISubscription {
             }
 
             String accessToken = createAccessToken(consumerCredentials);
-            getApplicatonID(config.getApplicationName(),accessToken);
+            getApplicatonID(config.getApplicationName(), accessToken);
 
             String responseString;
             CloseableHttpResponse response;
@@ -609,7 +608,7 @@ public class APISubscription {
 
             String applicationId = config.getApplicationID();
 
-        try {
+            try {
                 //Retrieve API subscription- information
                 client = HttpClientGenerator.getHttpClient();
                 String url = config.getStoreUrl() + "/subscriptions?applicationId=" + applicationId;
@@ -677,37 +676,155 @@ public class APISubscription {
 
     }
 
-    public static void removeSubscribedAPI(String consumerCredentials) throws APISubscriptionException{
+    public static void removeSubscribedAPI(String consumerCredentials) throws APISubscriptionException {
 
-        try{
+        try {
             String accessToken = createAccessToken(consumerCredentials);
+
             showExistingApplications(accessToken);
 
             ApiImportExportConfiguration config = ApiImportExportConfiguration.getInstance();
             Scanner scanner = new Scanner(System.in, ImportExportConstants.CHARSET);
 
             if (StringUtils.isBlank(config.getApplicationName())) {
-                System.out.print("Enter the name of the Application to unsubscribe the API: ");
+                System.out.print("\nEnter the name of the Application to unsubscribe the API: ");
                 String name = scanner.next();
                 if (StringUtils.isNotBlank(name)) {
                     config.setApplicationName(name);
                 }
             }
 
-           getApplicatonID(config.getApplicationName(),accessToken);
-           showAPIs(accessToken,config.getApplicationID());
+            showAllSubscriptions(accessToken);
 
-        }catch (Exception e){
+
+
+        } catch (Exception e) {
 
         }
 
     }
 
-    private static void showAPIs(String accessToken, String applicationName) {
+    private static void showAllSubscriptions(String accessToken) throws APISubscriptionException {
+
         try {
 
-        }catch (Exceptio){
+            ApiImportExportConfiguration config = ApiImportExportConfiguration.getInstance();
 
+            String responseString;
+            CloseableHttpResponse response;
+            CloseableHttpClient client = null;
+
+            getApplicatonID(config.getApplicationName(),accessToken);
+
+            //Retrieve API subscription- information
+            client = HttpClientGenerator.getHttpClient();
+            String url = config.getStoreUrl() + "/subscriptions?applicationId="+config.getApplicationID();
+            HttpGet request = new HttpGet(url);
+
+            request.setHeader(HttpHeaders.AUTHORIZATION, ImportExportConstants.CONSUMER_KEY_SEGMENT +
+                    accessToken);
+            request.setHeader(HttpHeaders.CONTENT_TYPE, ImportExportConstants.CONTENT_JSON);
+            response = client.execute(request);
+
+            if (response.getStatusLine().getStatusCode() == Response.Status.OK.getStatusCode()) {
+                try {
+                    HttpEntity entity = response.getEntity();
+                    responseString = EntityUtils.toString(entity);
+                    JSONObject json = (JSONObject) parser.parse(responseString);
+                    JSONArray list = (JSONArray) json.get("list");
+                    System.out.println("\nApplication Name : " + config.getApplicationName());
+                    System.out.println("----------------------------------------------");
+                    System.out.println("APIs ");
+
+                    for (int i = 0; i < list.size(); i++) {
+                        JSONObject content = (JSONObject) list.get(i);
+                        String applicationId = (String) content.get("applicationId");
+                   //    String appName = getApplicationName(applicationId, accessToken);
+                        String apiIdentifier = (String) content.get("apiIdentifier");
+                        System.out.println(apiIdentifier);
+                    }
+
+                } catch (IOException e) {
+                    String errorMsg = "Error occurred while converting API response to string";
+                    log.error(errorMsg, e);
+                    throw new APISubscriptionException(errorMsg, e);
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+
+            } else if (response.getStatusLine().getStatusCode() ==
+                    Response.Status.NOT_FOUND.getStatusCode()) {
+                String message = "Subscriptions do not exist/ not found ";
+                log.warn(message);
+                throw new APISubscriptionException(message);
+            } else {
+                String errorMsg = "Error occurred while retrieving the subscription-information ";
+                log.error(errorMsg);
+                throw new APISubscriptionException(errorMsg);
+            }
+
+        } catch (IOException e) {
+            String errorMsg = "Error occurred while retrieving details of the subscription ";
+            log.error(errorMsg, e);
+            throw new APISubscriptionException(errorMsg, e);
+        } catch (UtilException e) {
+            String errorMsg = "Error occurred while getting a closable http client for execution";
+            log.error(errorMsg, e);
+            throw new APISubscriptionException(errorMsg, e);
         }
+
+    }
+
+    private static String getApplicationName(String applicationId, String accessToken) {
+
+        String name = null;
+
+        try {
+
+            ApiImportExportConfiguration config = ApiImportExportConfiguration.getInstance();
+            String responseString;
+            CloseableHttpResponse response;
+            CloseableHttpClient client = null;
+
+            client = HttpClientGenerator.getHttpClient();
+            String url = config.getStoreUrl() + "/applications/" + applicationId;
+            HttpGet request = new HttpGet(url);
+
+            request.setHeader(HttpHeaders.AUTHORIZATION, ImportExportConstants.CONSUMER_KEY_SEGMENT +
+                    accessToken);
+            request.setHeader(HttpHeaders.CONTENT_TYPE, ImportExportConstants.CONTENT_JSON);
+            response = client.execute(request);
+
+            if (response.getStatusLine().getStatusCode() == Response.Status.OK.getStatusCode()) {
+                try {
+                    HttpEntity entity = response.getEntity();
+                    responseString = EntityUtils.toString(entity);
+                    JSONObject json = (JSONObject) parser.parse(responseString);
+                    name = (String) json.get("name");
+
+                } catch (IOException e) {
+                    String errorMsg = "Error occurred while converting response to string";
+                    log.error(errorMsg, e);
+                    throw new APISubscriptionException(errorMsg, e);
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+
+            } else if (response.getStatusLine().getStatusCode() ==
+                    Response.Status.NOT_FOUND.getStatusCode()) {
+                String message = "Application " + applicationId + " does not exist/ not found ";
+                log.warn(message);
+                throw new APISubscriptionException(message);
+            } else {
+                String errorMsg = "Error occurred while retrieving the information of Application " + applicationId;
+                log.error(errorMsg);
+                throw new APISubscriptionException(errorMsg);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return name;
     }
 }
